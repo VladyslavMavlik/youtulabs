@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { MouseFollowBackground } from './MouseFollowBackground';
+import { CryptoSelectionModal } from './CryptoSelectionModal';
+import { CryptoPaymentModal } from './CryptoPaymentModal';
 import type { User } from '@supabase/supabase-js';
 import type { Language } from '../lib/translations';
 import { translations } from '../lib/translations';
@@ -87,6 +89,22 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
   const [redeemMessage, setRedeemMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // Crypto payment state
+  const [showCryptoSelection, setShowCryptoSelection] = useState(false);
+  const [showCryptoPayment, setShowCryptoPayment] = useState(false);
+  const [cryptoPaymentData, setCryptoPaymentData] = useState<{
+    order_id: string;
+    payment_url: string;
+    wallet_address?: string;
+    amount_usd: number;
+    crypto_amount?: number;
+    cryptocurrency: string;
+    crypto_code?: string;
+    network?: string;
+    plan_name?: string;
+  } | null>(null);
+  const [cryptoLoading, setCryptoLoading] = useState(false);
+
   useEffect(() => {
     const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
     const environment = import.meta.env.VITE_PADDLE_ENVIRONMENT || 'production';
@@ -106,13 +124,26 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
   }, []);
 
   const handlePayment = async () => {
-    if (!selectedPack || !paddleReady) {
-      console.warn('[CREDITS] Cannot proceed: selectedPack or Paddle not ready');
+    if (!selectedPack) {
+      console.warn('[CREDITS] Cannot proceed: no pack selected');
       return;
     }
 
     if (!user?.id) {
       alert('Please log in to continue');
+      return;
+    }
+
+    // Handle crypto payment separately
+    if (selectedPayment === 'crypto') {
+      setShowPaymentModal(false);
+      setShowCryptoSelection(true);
+      return;
+    }
+
+    // For card/paypal - use Paddle
+    if (!paddleReady) {
+      console.warn('[CREDITS] Paddle not ready');
       return;
     }
 
@@ -122,7 +153,6 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
       const priceId = getCreditPackPriceId(selectedPack);
       console.log('[CREDITS] Opening Paddle checkout for:', selectedPack, 'priceId:', priceId, 'payment method:', selectedPayment);
 
-      // Всі методи оплати відкривають Paddle Checkout
       openPaddleCheckout(priceId, {
         id: user.id,
         email: user.email
@@ -133,6 +163,66 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
       console.error('[CREDITS] Payment error:', error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Handle crypto selection
+  const handleCryptoSelect = async (crypto: { code: string; name: string; network: string }) => {
+    if (!selectedPack || !user?.id) return;
+
+    const pack = crystalPacks.find(p => p.id === selectedPack);
+    if (!pack) return;
+
+    setCryptoLoading(true);
+    setShowCryptoSelection(false);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        alert('Authentication required');
+        setCryptoLoading(false);
+        return;
+      }
+
+      const API_URL = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${API_URL}/api/crypto/create-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          amount: pack.price,
+          currency: crypto.code,
+          type: 'credits',
+          credits: pack.crystals + pack.bonus,
+          description: `${pack.crystals.toLocaleString()} crystals${pack.bonus > 0 ? ` + ${pack.bonus} bonus` : ''}`
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.payment) {
+        setCryptoPaymentData({
+          order_id: data.payment.order_id,
+          payment_url: data.payment.payment_url,
+          wallet_address: data.payment.pay_address,
+          amount_usd: pack.price,
+          crypto_amount: data.payment.pay_amount,
+          cryptocurrency: crypto.name,
+          crypto_code: crypto.code,
+          network: crypto.network,
+          plan_name: `${pack.crystals.toLocaleString()} Crystals`
+        });
+        setShowCryptoPayment(true);
+      } else {
+        alert(data.message || 'Failed to create payment');
+      }
+    } catch (error) {
+      console.error('[CREDITS] Crypto payment error:', error);
+      alert('Failed to create crypto payment');
+    } finally {
+      setCryptoLoading(false);
     }
   };
 
@@ -918,6 +1008,33 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Crypto Selection Modal */}
+      <CryptoSelectionModal
+        isOpen={showCryptoSelection}
+        onClose={() => setShowCryptoSelection(false)}
+        onSelect={handleCryptoSelect}
+        planName={selectedPack ? `${crystalPacks.find(p => p.id === selectedPack)?.crystals.toLocaleString()} Crystals` : ''}
+        planPrice={selectedPack ? crystalPacks.find(p => p.id === selectedPack)?.price || 0 : 0}
+      />
+
+      {/* Crypto Payment Modal */}
+      <CryptoPaymentModal
+        isOpen={showCryptoPayment}
+        onClose={() => {
+          setShowCryptoPayment(false);
+          setCryptoPaymentData(null);
+        }}
+        paymentData={cryptoPaymentData}
+        planName={selectedPack ? `${crystalPacks.find(p => p.id === selectedPack)?.crystals.toLocaleString()} Crystals` : ''}
+      />
+
+      {/* Loading overlay for crypto */}
+      {cryptoLoading && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center" style={{ zIndex: 999999 }}>
+          <div className="text-white text-lg">Creating payment...</div>
+        </div>
+      )}
 
       <Footer />
     </div>
