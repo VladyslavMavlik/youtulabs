@@ -14,6 +14,7 @@ import { translations, storyLanguages, genres, type Language } from '../lib/tran
 import { InfoTooltip } from './InfoTooltip';
 import { isAudioEnabled, calculateCrystalCost, calculateAudioCrystalCost } from '../lib/pricing';
 import { calculateWordCount } from '../lib/wordsPerMinute';
+import { VoiceSelector } from './VoiceSelector';
 
 export interface GenerationFormRef {
   setAudioTextAndSwitchMode: (text: string) => void;
@@ -724,65 +725,24 @@ export const GenerationForm = forwardRef<GenerationFormRef, GenerationFormProps>
                 </div>
               </div>
 
-              {/* Voice Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="voice" className="text-emerald-100/90">Voice</Label>
-                  <InfoTooltip content={t.tooltipVoice} />
-                </div>
-                <Select
+              {/* Voice Selection with Audio Preview */}
+              <div className="relative">
+                <VoiceSelector
                   key={formData.voiceGender}
-                  value={formData.voiceId}
-                  onValueChange={(value) => {
-                    const voice = VOICE_OPTIONS[formData.voiceGender || 'male'].find(v => v.id === value);
+                  voices={VOICE_OPTIONS[formData.voiceGender || 'male']}
+                  selectedVoiceId={formData.voiceId || VOICE_OPTIONS[formData.voiceGender || 'male'][0].id}
+                  onVoiceChange={(voiceId, voiceName) => {
                     setFormData({
                       ...formData,
-                      voiceId: value,
-                      voiceName: voice?.name
+                      voiceId,
+                      voiceName
                     });
                   }}
-                >
-                  <SelectTrigger id="voice" className="bg-emerald-950/30 border-emerald-600/30 text-emerald-100 hover:bg-emerald-900/40 transition-colors">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-emerald-950/95 backdrop-blur-xl border border-emerald-600/30">
-                    {VOICE_OPTIONS[formData.voiceGender || 'male'].map((voice) => (
-                      <SelectItem
-                        key={voice.id}
-                        value={voice.id}
-                        className="text-emerald-100/70 focus:text-emerald-50 focus:bg-emerald-900/30"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{voice.name}</span>
-                          {voice.multilingual ? (
-                            <span className="text-xs opacity-70" title="Supports 29+ languages">
-                              🌍
-                            </span>
-                          ) : voice.accent && (
-                            <span className="text-xs opacity-70" title="English optimized">
-                              {voice.accent}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Voice Description */}
-                {formData.voiceId && (() => {
-                  const selectedVoice = VOICE_OPTIONS[formData.voiceGender || 'male'].find(v => v.id === formData.voiceId);
-                  if (selectedVoice?.description) {
-                    const currentLang = language as 'uk' | 'en' | 'pl';
-                    const description = selectedVoice.description[currentLang] || selectedVoice.description.en;
-                    return (
-                      <p className="text-sm mt-2 italic" style={{ color: 'rgba(156, 163, 175, 0.8)' }}>
-                        ({description})
-                      </p>
-                    );
-                  }
-                  return null;
-                })()}
+                  gender={formData.voiceGender || 'male'}
+                  language={language as 'uk' | 'en' | 'pl'}
+                  label="Voice"
+                  tooltip={t.tooltipVoice}
+                />
               </div>
 
               {/* Text Input */}
