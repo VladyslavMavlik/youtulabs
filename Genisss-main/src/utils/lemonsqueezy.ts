@@ -34,6 +34,39 @@ export function getVariantId(planId: string): string {
   return mapping[planId] || LEMONSQUEEZY_VARIANTS.starter;
 }
 
+// Custom error types for subscription operations
+export interface SubscriptionError {
+  error: string;
+  message: string;
+  current_plan?: string;
+  requested_plan?: string;
+  expires_at?: string;
+}
+
+export class DowngradeNotAllowedError extends Error {
+  current_plan: string;
+  requested_plan: string;
+  expires_at?: string;
+
+  constructor(data: SubscriptionError) {
+    super(data.message);
+    this.name = 'DowngradeNotAllowedError';
+    this.current_plan = data.current_plan || '';
+    this.requested_plan = data.requested_plan || '';
+    this.expires_at = data.expires_at;
+  }
+}
+
+export class SamePlanError extends Error {
+  current_plan: string;
+
+  constructor(data: SubscriptionError) {
+    super(data.message);
+    this.name = 'SamePlanError';
+    this.current_plan = data.current_plan || '';
+  }
+}
+
 /**
  * Open LemonSqueezy checkout
  * Calls backend API to generate checkout URL with user_id
@@ -68,8 +101,17 @@ export async function openLemonSqueezyCheckout(
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to create checkout');
+      const errorData = await response.json();
+
+      // Handle specific error types
+      if (errorData.error === 'downgrade_not_allowed') {
+        throw new DowngradeNotAllowedError(errorData);
+      }
+      if (errorData.error === 'same_plan') {
+        throw new SamePlanError(errorData);
+      }
+
+      throw new Error(errorData.message || errorData.error || 'Failed to create checkout');
     }
 
     const { checkoutUrl } = await response.json();

@@ -221,6 +221,25 @@ app.post('/api/lemonsqueezy/webhook', async (req, res) => {
   await handleLemonSqueezyWebhook(req, res);
 });
 
+// Plan hierarchy for upgrade/downgrade checks
+const PLAN_HIERARCHY = {
+  'starter': 1,
+  'pro': 2,
+  'ultimate': 3
+};
+
+// Map variant IDs to plan names
+const VARIANT_TO_PLAN = {
+  // Live Mode
+  '720643': 'starter',
+  '720649': 'pro',
+  '720658': 'ultimate',
+  // Test Mode
+  '1134259': 'starter',
+  '1134267': 'pro',
+  '1134281': 'ultimate'
+};
+
 // LemonSqueezy Checkout URL Generator (requires authentication)
 app.post('/api/lemonsqueezy/checkout', async (req, res) => {
   try {
@@ -245,6 +264,80 @@ app.post('/api/lemonsqueezy/checkout', async (req, res) => {
 
     if (!variantId) {
       return res.status(400).json({ error: 'Missing variantId' });
+    }
+
+    // Get the requested plan from variant ID
+    const requestedPlan = VARIANT_TO_PLAN[variantId];
+    if (!requestedPlan) {
+      return res.status(400).json({ error: 'Invalid variantId' });
+    }
+
+    // Check if user has an active subscription (check LemonSqueezy table first - most accurate)
+    let currentSub = null;
+
+    // First check lemonsqueezy_subscriptions (primary source for LemonSqueezy users)
+    console.log('[LEMONSQUEEZY CHECKOUT] Checking subscription for user:', user.id);
+    const { data: lsSubArr, error: lsError } = await supabaseAdmin
+      .from('lemonsqueezy_subscriptions')
+      .select('plan_type, status, current_period_end')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'past_due'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    console.log('[LEMONSQUEEZY CHECKOUT] Query result:', JSON.stringify(lsSubArr), 'Error:', lsError);
+    const lsSub = lsSubArr?.[0];
+
+    if (lsSub) {
+      currentSub = {
+        plan_id: lsSub.plan_type,
+        status: lsSub.status,
+        expires_at: lsSub.current_period_end
+      };
+      console.log('[LEMONSQUEEZY CHECKOUT] Found LemonSqueezy subscription:', currentSub.plan_id);
+    } else {
+      // Fallback to user_subscriptions (for Paddle/other payment systems)
+      const { data: usSub } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('plan_id, status, expires_at')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (usSub) {
+        currentSub = usSub;
+        console.log('[LEMONSQUEEZY CHECKOUT] Found user_subscriptions:', currentSub.plan_id);
+      }
+    }
+
+    if (currentSub) {
+      const currentPlanLevel = PLAN_HIERARCHY[currentSub.plan_id] || 0;
+      const requestedPlanLevel = PLAN_HIERARCHY[requestedPlan] || 0;
+
+      // Check for downgrade attempt
+      if (requestedPlanLevel < currentPlanLevel) {
+        console.log('[LEMONSQUEEZY CHECKOUT] Downgrade blocked:', currentSub.plan_id, '->', requestedPlan);
+        return res.status(400).json({
+          error: 'downgrade_not_allowed',
+          message: 'Downgrade is not allowed. Please cancel your current subscription first.',
+          current_plan: currentSub.plan_id,
+          requested_plan: requestedPlan,
+          expires_at: currentSub.expires_at
+        });
+      }
+
+      // Check for same plan
+      if (requestedPlanLevel === currentPlanLevel) {
+        console.log('[LEMONSQUEEZY CHECKOUT] Same plan blocked:', requestedPlan);
+        return res.status(400).json({
+          error: 'same_plan',
+          message: 'You already have this subscription plan.',
+          current_plan: currentSub.plan_id
+        });
+      }
+
+      // Upgrade is allowed - log it
+      console.log('[LEMONSQUEEZY CHECKOUT] Upgrade allowed:', currentSub.plan_id, '->', requestedPlan);
     }
 
     // Generate checkout URL with user_id in custom data
@@ -288,6 +381,95 @@ app.get('/api/lemonsqueezy/subscription', async (req, res) => {
     return res.json(result);
   } catch (error) {
     console.error('[LEMONSQUEEZY] subscription error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get LemonSqueezy Customer Portal URL (requires authentication)
+app.get('/api/lemonsqueezy/customer-portal', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    // Get customer portal URL from lemonsqueezy_subscriptions
+    const { data: subArr, error: subError } = await supabaseAdmin
+      .from('lemonsqueezy_subscriptions')
+      .select('lemonsqueezy_data')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'past_due', 'cancelled'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const sub = subArr?.[0];
+
+    if (!sub || !sub.lemonsqueezy_data?.data?.attributes?.urls?.customer_portal) {
+      return res.status(404).json({ error: 'No subscription found' });
+    }
+
+    const portalUrl = sub.lemonsqueezy_data.data.attributes.urls.customer_portal;
+
+    console.log('[LEMONSQUEEZY] Customer portal URL for user:', user.id);
+
+    return res.json({ url: portalUrl });
+  } catch (error) {
+    console.error('[LEMONSQUEEZY] customer-portal error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Cancel LemonSqueezy subscription (requires authentication)
+app.post('/api/lemonsqueezy/cancel-subscription', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    // Get customer portal URL - user will cancel there
+    const { data: subArr } = await supabaseAdmin
+      .from('lemonsqueezy_subscriptions')
+      .select('lemonsqueezy_data')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'past_due'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const sub = subArr?.[0];
+
+    if (!sub || !sub.lemonsqueezy_data?.data?.attributes?.urls?.customer_portal) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    // Return customer portal URL - user will cancel through LemonSqueezy portal
+    const portalUrl = sub.lemonsqueezy_data.data.attributes.urls.customer_portal;
+
+    console.log('[LEMONSQUEEZY] Redirecting to portal for cancellation, user:', user.id);
+
+    return res.json({
+      success: true,
+      message: 'Please cancel your subscription through the customer portal',
+      portal_url: portalUrl
+    });
+  } catch (error) {
+    console.error('[LEMONSQUEEZY] cancel-subscription error:', error);
     return res.status(500).json({ error: 'Server error' });
   }
 });

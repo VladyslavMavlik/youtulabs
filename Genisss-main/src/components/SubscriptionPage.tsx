@@ -10,7 +10,7 @@ import type { User } from '@supabase/supabase-js';
 import type { Language } from '../lib/translations';
 import { translations } from '../lib/translations';
 import { initializePaddle, openPaddleCheckout, getPriceId } from '../utils/paddle';
-import { openLemonSqueezyCheckout, getVariantId } from '../utils/lemonsqueezy';
+import { openLemonSqueezyCheckout, getVariantId, DowngradeNotAllowedError, SamePlanError } from '../utils/lemonsqueezy';
 import { supabase } from '../lib/supabase';
 
 interface SubscriptionPageProps {
@@ -88,6 +88,14 @@ export function SubscriptionPage({ onBack, user, balance, language = 'en', userP
   const [showCryptoSelection, setShowCryptoSelection] = useState(false);
   const [showCryptoPayment, setShowCryptoPayment] = useState(false);
   const [cryptoPaymentData, setCryptoPaymentData] = useState<any>(null);
+
+  // Subscription error states
+  const [subscriptionError, setSubscriptionError] = useState<{
+    type: 'downgrade' | 'same_plan' | null;
+    currentPlan: string;
+    requestedPlan?: string;
+    expiresAt?: string;
+  } | null>(null);
 
   // Ініціалізація Paddle при завантаженні компонента
   useEffect(() => {
@@ -183,9 +191,27 @@ export function SubscriptionPage({ onBack, user, balance, language = 'en', userP
       });
 
       // Redirect відбувається в openLemonSqueezyCheckout
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LEMONSQUEEZY] Payment error:', error);
-      alert('Payment error. Please try again.');
+
+      // Handle specific subscription errors by checking error.name
+      // (instanceof doesn't work reliably with custom Error classes)
+      if (error?.name === 'DowngradeNotAllowedError') {
+        setSubscriptionError({
+          type: 'downgrade',
+          currentPlan: error.current_plan,
+          requestedPlan: error.requested_plan,
+          expiresAt: error.expires_at
+        });
+      } else if (error?.name === 'SamePlanError') {
+        setSubscriptionError({
+          type: 'same_plan',
+          currentPlan: error.current_plan
+        });
+      } else {
+        alert('Payment error. Please try again.');
+      }
+
       setIsProcessing(false);
     }
 
@@ -803,6 +829,119 @@ export function SubscriptionPage({ onBack, user, balance, language = 'en', userP
         planName={plans.find(p => p.id === selectedPlan)?.name || ''}
         onPaymentComplete={handleCryptoPaymentComplete}
       />
+
+      {/* Subscription Error Modal */}
+      <AnimatePresence>
+        {subscriptionError && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSubscriptionError(null)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-2xl p-8 w-full max-w-md relative"
+                style={{
+                  background: 'rgba(20, 25, 30, 0.98)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  boxShadow: '0 25px 70px rgba(0, 0, 0, 0.7)'
+                }}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setSubscriptionError(null)}
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+
+                {/* Icon */}
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.2)' }}>
+                    <X className="w-8 h-8 text-red-400" />
+                  </div>
+                </div>
+
+                {/* Title */}
+                <h3 className="text-xl font-bold text-white text-center mb-2">
+                  {subscriptionError.type === 'downgrade'
+                    ? (t.downgradeNotAllowed || 'Downgrade Not Allowed')
+                    : (t.alreadySubscribed || 'Already Subscribed')}
+                </h3>
+
+                {/* Message */}
+                <p className="text-gray-400 text-center mb-6">
+                  {subscriptionError.type === 'downgrade' ? (
+                    <>
+                      {t.downgradeMessage || 'You cannot downgrade while your current subscription is active. Please cancel your current subscription first.'}
+                      <br /><br />
+                      <span className="text-emerald-400">
+                        {t.currentPlan || 'Current plan'}: <strong className="capitalize">{subscriptionError.currentPlan}</strong>
+                      </span>
+                      {subscriptionError.expiresAt && (
+                        <>
+                          <br />
+                          <span className="text-gray-500 text-sm">
+                            {t.expiresOn || 'Expires on'}: {new Date(subscriptionError.expiresAt).toLocaleDateString()}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {t.samePlanMessage || 'You already have this subscription plan active.'}
+                      <br /><br />
+                      <span className="text-emerald-400">
+                        {t.currentPlan || 'Current plan'}: <strong className="capitalize">{subscriptionError.currentPlan}</strong>
+                      </span>
+                    </>
+                  )}
+                </p>
+
+                {/* Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSubscriptionError(null)}
+                    className="flex-1 py-3 rounded-xl font-medium transition-colors"
+                    style={{
+                      background: 'rgba(71, 85, 105, 0.3)',
+                      color: 'white',
+                      border: '1px solid rgba(71, 85, 105, 0.5)'
+                    }}
+                  >
+                    {t.close || 'Close'}
+                  </button>
+                  {subscriptionError.type === 'downgrade' && (
+                    <button
+                      onClick={() => {
+                        setSubscriptionError(null);
+                        // Navigate to profile page where user can cancel subscription
+                        window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'profile' } }));
+                      }}
+                      className="flex-1 py-3 rounded-xl font-medium transition-colors"
+                      style={{
+                        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                        color: 'white'
+                      }}
+                    >
+                      {t.manageSubscription || 'Manage Subscription'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <style>{`
         /* Force scrollbar to always be visible */

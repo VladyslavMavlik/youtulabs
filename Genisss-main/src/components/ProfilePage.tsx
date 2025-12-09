@@ -160,7 +160,8 @@ export function ProfilePage({ onBack, user, balance = 0, language = 'en', onLang
         return;
       }
 
-      const response = await fetch(`${API_URL}/paddle/cancel-subscription`, {
+      // Call LemonSqueezy to get customer portal URL
+      const response = await fetch(`${API_URL}/api/lemonsqueezy/cancel-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,14 +172,16 @@ export function ProfilePage({ onBack, user, balance = 0, language = 'en', onLang
 
       const result = await response.json();
 
-      if (response.ok) {
-        toast.success('Subscription cancelled successfully');
+      // If LemonSqueezy returns portal URL, redirect there
+      if (response.ok && result.portal_url) {
         setShowCancelModal(false);
-        // Reload subscription data
-        await loadSubscription();
-      } else {
-        toast.error(result.error || 'Failed to cancel subscription');
+        window.open(result.portal_url, '_blank');
+        toast.success('Opening subscription management portal...');
+        return;
       }
+
+      // Show error if failed
+      toast.error(result.error || result.message || 'Failed to cancel subscription');
     } catch (error) {
       console.error('Cancel subscription error:', error);
       toast.error('Failed to cancel subscription');

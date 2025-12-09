@@ -19,11 +19,31 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // LemonSqueezy webhook signing secret (set in dashboard)
 const LEMONSQUEEZY_WEBHOOK_SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
 
-// Variant IDs mapping
+// Variant IDs mapping (for webhook processing)
+// Supports both Live Mode and Test Mode variant IDs
 const VARIANT_PLANS = {
+  // Live Mode IDs
   '720643': { plan: 'starter', credits: 2000, price: 8.00 },
   '720649': { plan: 'pro', credits: 6000, price: 19.99 },
-  '720658': { plan: 'ultimate', credits: 20000, price: 49.99 }
+  '720658': { plan: 'ultimate', credits: 20000, price: 49.99 },
+  // Test Mode IDs
+  '1134259': { plan: 'starter', credits: 2000, price: 8.00 },
+  '1134267': { plan: 'pro', credits: 6000, price: 19.99 },
+  '1134281': { plan: 'ultimate', credits: 20000, price: 49.99 }
+};
+
+// Checkout UUIDs for each plan (from LemonSqueezy dashboard "Share" button)
+const CHECKOUT_UUIDS = {
+  'starter': 'dcb0d828-011b-4d13-8488-657f944e680a',
+  'pro': '4fdea4e7-2f14-465c-ade3-39c092b1f507',
+  'ultimate': '560747c8-774d-48d0-860f-1a307f4e8f5c'
+};
+
+// Map variant IDs to plan names for checkout
+const VARIANT_TO_PLAN = {
+  '720643': 'starter',
+  '720649': 'pro',
+  '720658': 'ultimate'
 };
 
 console.log('[LEMONSQUEEZY] Loaded variant plans:', Object.keys(VARIANT_PLANS));
@@ -394,19 +414,33 @@ export async function handleLemonSqueezyWebhook(req, res) {
 
 /**
  * Generate checkout URL for LemonSqueezy
+ * Uses UUID from dashboard "Share" button, not variant ID
  */
 export function generateCheckoutUrl(variantId, userId, userEmail) {
-  // LemonSqueezy checkout URL format
-  // In test mode: https://[STORE].lemonsqueezy.com/checkout/buy/[VARIANT_ID]
-  // With custom data for user tracking
+  const storeSlug = process.env.LEMONSQUEEZY_STORE_SLUG || 'youtu-labs';
 
-  const storeSlug = process.env.LEMONSQUEEZY_STORE_SLUG || 'youtulabs';
+  // Get plan name from variant ID, then get checkout UUID
+  const planName = VARIANT_TO_PLAN[variantId];
+  if (!planName) {
+    console.error('[LEMONSQUEEZY] Unknown variant ID:', variantId);
+    throw new Error(`Unknown variant ID: ${variantId}`);
+  }
+
+  const checkoutUuid = CHECKOUT_UUIDS[planName];
+  if (!checkoutUuid) {
+    console.error('[LEMONSQUEEZY] No checkout UUID for plan:', planName);
+    throw new Error(`No checkout UUID for plan: ${planName}`);
+  }
 
   // Build checkout URL with custom data
+  // Format: https://store.lemonsqueezy.com/buy/UUID?checkout[custom][user_id]=xxx
   const params = new URLSearchParams({
     'checkout[custom][user_id]': userId,
     'checkout[email]': userEmail || ''
   });
 
-  return `https://${storeSlug}.lemonsqueezy.com/checkout/buy/${variantId}?${params.toString()}`;
+  const url = `https://${storeSlug}.lemonsqueezy.com/buy/${checkoutUuid}?${params.toString()}`;
+  console.log('[LEMONSQUEEZY] Generated checkout URL for', planName, ':', url);
+
+  return url;
 }
