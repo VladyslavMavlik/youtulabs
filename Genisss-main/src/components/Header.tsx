@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Headset, Gem, Send, Gift, Mail, Copy } from 'lucide-react';
+import { Headset, Gem, Send, Mail, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { Odometer } from './Odometer';
 import { SimpleAuthModal } from './SimpleAuthModal';
@@ -29,9 +29,9 @@ export function Header({ user, language, onLanguageChange, balance, userPlan, sh
   const [telegramHovered, setTelegramHovered] = useState(false);
   const [supportHovered, setSupportHovered] = useState(false);
   const [supportButtonHovered, setSupportButtonHovered] = useState(false);
-  const [giftHovered, setGiftHovered] = useState(false);
   const [emailHovered, setEmailHovered] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [giftHovered, setGiftHovered] = useState(false);
   const supportMenuRef = useRef<HTMLDivElement>(null);
   const t = translations[language];
 
@@ -391,38 +391,117 @@ export function Header({ user, language, onLanguageChange, balance, userPlan, sh
 
         <div className="flex items-center gap-6">
           {user && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{
-                scale: 0.95,
-                boxShadow: '0 0 25px rgba(168, 85, 247, 0.9), 0 0 50px rgba(236, 72, 153, 0.6)'
-              }}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'subscription' } }));
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all"
-              style={{ border: '1px solid #a855f7', backgroundColor: 'rgba(168, 85, 247, 0.15)' }}
-            >
+            <div className="flex items-center gap-3">
+              {/* Gift Icon with Animation */}
               <motion.div
-                className="relative"
-                animate={{
-                  rotate: [0, -10, 10, -10, 0],
-                  scale: [1, 1.1, 1, 1.1, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  repeatDelay: 3,
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                whileHover={{ scale: 1.1 }}
+                className="cursor-pointer relative flex items-center justify-center"
+                style={{ width: '40px', height: '40px', marginTop: '-4px' }}
+                onMouseEnter={() => setGiftHovered(true)}
+                onMouseLeave={() => setGiftHovered(false)}
+                onClick={() => {
+                  window.open('https://t.me/youtulabs_bot', '_blank');
                 }}
               >
-                <Gem className="w-4 h-4" style={{ color: '#a855f7', filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 1)) drop-shadow(0 0 15px rgba(236, 72, 153, 0.6))' }} />
+                {/* Confetti animations - only render on hover */}
+                {giftHovered && (
+                  <>
+                    <img
+                      src="/premium-icon.gif"
+                      alt=""
+                      style={{
+                        width: '70px',
+                        height: '70px',
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                        opacity: 0.9,
+                      }}
+                    />
+                    <img
+                      src="/premium-icon.gif"
+                      alt=""
+                      style={{
+                        width: '60px',
+                        height: '60px',
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%) rotate(45deg)',
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                        opacity: 0.7,
+                      }}
+                    />
+                    <img
+                      src="/premium-icon.gif"
+                      alt=""
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%) rotate(-30deg)',
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                        opacity: 0.5,
+                      }}
+                    />
+                  </>
+                )}
+                {/* Gift box animation - always visible */}
+                <img
+                  src="/gift-animation.gif"
+                  alt="Gift"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    position: 'relative',
+                    zIndex: 1,
+                  }}
+                />
               </motion.div>
-              <span className="text-sm font-semibold" style={{ background: 'linear-gradient(to right, #c084fc, #f472b6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent', filter: 'brightness(1.2)' }}>
-                {balance.toLocaleString()}
-              </span>
-            </motion.div>
+
+              {/* Balance */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{
+                  scale: 0.95,
+                  boxShadow: '0 0 25px rgba(168, 85, 247, 0.9), 0 0 50px rgba(236, 72, 153, 0.6)'
+                }}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'subscription' } }));
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all"
+                style={{ border: '1px solid #a855f7', backgroundColor: 'rgba(168, 85, 247, 0.15)' }}
+              >
+                <motion.div
+                  className="relative"
+                  animate={{
+                    rotate: [0, -10, 10, -10, 0],
+                    scale: [1, 1.1, 1, 1.1, 1],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    repeatDelay: 3,
+                  }}
+                >
+                  <Gem className="w-4 h-4" style={{ color: '#a855f7', filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 1)) drop-shadow(0 0 15px rgba(236, 72, 153, 0.6))' }} />
+                </motion.div>
+                <span className="text-sm font-semibold" style={{ background: 'linear-gradient(to right, #c084fc, #f472b6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent', filter: 'brightness(1.2)' }}>
+                  {balance.toLocaleString()}
+                </span>
+              </motion.div>
+            </div>
           )}
 
           {/* Telegram Channel Button with Tooltip */}
@@ -591,31 +670,6 @@ export function Header({ user, language, onLanguageChange, balance, userPlan, sh
                         color: supportHovered ? '#fbbf24' : 'rgba(209, 250, 229, 0.9)',
                         transition: 'color 0.2s'
                       }}>{t.contactSupport}</span>
-                    </a>
-
-                    {/* Gift Code */}
-                    <a
-                      href="https://t.me/youtulabs_bot"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-4 py-3 transition-all duration-200 cursor-pointer"
-                      onMouseEnter={(e) => {
-                        setGiftHovered(true);
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        setGiftHovered(false);
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                      onClick={() => setShowSupportMenu(false)}
-                    >
-                      <div className="flex items-center justify-center" style={{ width: '32px', height: '32px', flexShrink: 0 }}>
-                        <Gift className="w-5 h-5" style={{ color: '#ec4899' }} />
-                      </div>
-                      <span className="text-sm flex-1" style={{
-                        color: giftHovered ? '#ec4899' : 'rgba(209, 250, 229, 0.9)',
-                        transition: 'color 0.2s'
-                      }}>{t.giftCode}</span>
                     </a>
 
                     {/* Email Support */}

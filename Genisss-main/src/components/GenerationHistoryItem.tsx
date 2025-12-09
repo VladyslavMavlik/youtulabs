@@ -173,9 +173,15 @@ export function GenerationHistoryItem({ item, index, totalCount, onConvertToAudi
         onClick={() => item.type === 'text' && setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/50">
+          <div
+            className="flex items-center justify-center w-10 h-10 rounded-full"
+            style={{
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.5)',
+            }}
+          >
             {item.type === 'audio' ? (
-              <Volume2 className="w-5 h-5 text-emerald-400" />
+              <Volume2 className="w-5 h-5" style={{ color: '#a855f7' }} />
             ) : (
               <BookText className="w-5 h-5" style={{ color: '#c9a468' }} />
             )}

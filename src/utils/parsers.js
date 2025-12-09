@@ -382,8 +382,10 @@ export function countWords(text, language = null) {
 
 /**
  * Extract chapters from markdown
+ * @param {string} markdown - Markdown text with chapters
+ * @param {string} language - Language code for proper word counting (e.g., 'uk-UA', 'ja-JP')
  */
-export function extractChapters(markdown) {
+export function extractChapters(markdown, language = null) {
   const chapters = [];
   const chapterRegex = /^#\s+(.+?)$/gm;
   let lastIndex = 0;
@@ -400,7 +402,7 @@ export function extractChapters(markdown) {
     chapters.push({
       title,
       text,
-      wordCount: countWords(text)
+      wordCount: countWords(text, language)
     });
   });
 

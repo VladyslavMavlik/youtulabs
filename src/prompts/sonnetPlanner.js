@@ -50,27 +50,51 @@ export function buildSonnetPlannerPrompt({
   audioMode = false,
   contextSummary = null,
   actNumber = null,
+  totalActs = null,
   expectedChapters = null,
   options = {}
 }) {
+  // Determine if this is the final act
+  const isFinalAct = actNumber && totalActs && actNumber === totalActs;
+
+  // POV reminder for continuation mode - prevents drift across acts
+  const povReminder = pov === 'first'
+    ? `⚠️ POV REMINDER: The story is written in FIRST PERSON ("I/me/my"). MAINTAIN this perspective throughout. Do NOT switch to third person.`
+    : `⚠️ POV REMINDER: The story is written in THIRD PERSON ("he/she/they"). MAINTAIN this perspective throughout. Do NOT switch to first person.`;
+
+  // Final act resolution instructions
+  const finalActInstructions = isFinalAct ? `
+
+🔴 FINAL ACT - STORY CONCLUSION REQUIRED 🔴
+This is the LAST ACT of the story. You MUST:
+- Resolve ALL major plot threads and conflicts
+- Complete all character arcs with meaningful conclusions
+- Address every Chekhov's gun / setup from previous acts
+- Provide emotional resolution and closure for the reader
+- End with a satisfying conclusion (NOT a cliffhanger)
+- The final chapter must feel like a proper ending, not a sudden stop` : '';
+
   const actInfo = actNumber ? `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  CONTINUATION MODE - ACT ${actNumber}
+⚠️  CONTINUATION MODE - ACT ${actNumber} of ${totalActs || '?'}${isFinalAct ? ' (FINAL ACT)' : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+${povReminder}${finalActInstructions}
+
 CRITICAL INSTRUCTIONS:
-- This is ACT ${actNumber} of a multi-act story
+- This is ACT ${actNumber} of ${totalActs || 'a multi-act'} story${isFinalAct ? ' - THIS IS THE FINAL ACT' : ''}
 - DO NOT restart the story from the beginning
 - DO NOT re-introduce characters or settings already established
 - CONTINUE the narrative from where Act ${actNumber - 1} ended
-- Maintain character voices, POV, and narrative momentum
-- The PROMPT below shows the FULL story plan, but you're writing ONLY Act ${actNumber}
+- Maintain character voices, POV (${pov}-person), and narrative momentum
+- The PROMPT below shows the FULL story plan, but you're writing ONLY Act ${actNumber}${isFinalAct ? `
+- ⚠️ CONCLUDE THE STORY: All plot threads must be resolved in this act` : ''}
 
 WHAT HAPPENED IN PREVIOUS ACTS:
 ${contextSummary}
 
-YOUR TASK: Write Act ${actNumber} that continues naturally from the context above.
+YOUR TASK: Write Act ${actNumber} that continues naturally from the context above.${isFinalAct ? ' Bring the story to a satisfying conclusion.' : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : '';
 
@@ -81,14 +105,11 @@ YOUR TASK: Write Act ${actNumber} that continues naturally from the context abov
   // For long mode, use fewer chapters to prevent word count inflation
   // Use adaptive multiplier based on act position (middle acts tend to expand more)
   let chaptersPerKMultiplier = 1.0;
-  if (mode === 'long' && actNumber) {
-    // Calculate total acts from targetWords (orchestrator uses 3000 words per act)
-    const totalActs = Math.ceil(targetWords / 2500); // Current act's targetWords, not total story
-    // Actually, we need total story words - but we only have current act's targetWords
-    // So use actNumber position: first act = 1, last few acts, middle acts
-    // Simple heuristic: if actNumber is 1 or actNumber > 4, use less aggressive reduction
+  if (mode === 'long' && actNumber && totalActs) {
+    // Use actual totalActs passed from orchestrator for accurate position detection
     const isFirstAct = actNumber === 1;
-    const isMidAct = actNumber >= 2 && actNumber <= 4; // Middle acts tend to expand
+    const isLastAct = actNumber === totalActs;
+    const isMidAct = !isFirstAct && !isLastAct; // Middle acts tend to expand
     chaptersPerKMultiplier = isFirstAct ? 0.6 : (isMidAct ? 0.5 : 0.6); // 50% for middle, 60% for first/last
   }
   const baseChapterCount = Math.round(targetWords / 1000 * genrePack.chaptersPer1k * chaptersPerKMultiplier);
@@ -192,10 +213,11 @@ TIME COMPRESSION:
 Return STRICTLY the blocks with exact markers. No extra commentary outside the markers.
 
 [CRITICAL RULES - TOP PRIORITY]
-1. POV: Write STRICTLY in ${pov}-person. ${pov === 'first' ? 'Use "I/me/my" in ALL narrative.' : 'Use "he/she/they" in ALL narrative.'} Dialogue can use any pronouns.
-2. CHAPTER HEADERS: Start each chapter with "# Chapter N: [Title]" then ⟪CAMERA:CharacterName;POV:${pov};TENSE:${process.env.POV_TENSE || 'past'}⟫ on next line.
-3. DIALOGUE: Aim for ≥28% dialogue throughout story.
-4. NO META: Never include Logline/Synopsis inside chapter body text.
+1. WORD COUNT: You will receive a TARGET_WORDS value. This is a HARD LIMIT. Write EXACTLY that many words (±10%). DO NOT exceed it.
+2. POV: Write STRICTLY in ${pov}-person. ${pov === 'first' ? 'Use "I/me/my" in ALL narrative.' : 'Use "he/she/they" in ALL narrative.'} Dialogue can use any pronouns.
+3. CHAPTER HEADERS: Start each chapter with "# Chapter N: [Title]" then ⟪CAMERA:CharacterName;POV:${pov};TENSE:${process.env.POV_TENSE || 'past'}⟫ on next line.
+4. DIALOGUE: Aim for ≥28% dialogue throughout story.
+5. NO META: Never include Logline/Synopsis inside chapter body text.
 
 ${pov === 'first' ? `Example format (FIRST-PERSON):
 ---
@@ -267,10 +289,21 @@ REQUIREMENTS:${actNumber ? `
   - 6-8 beats for this ${actNumber ? 'act' : 'story'}; each with {index, name, goal, open_q (array of open questions/tensions)}.
   - Use genre beats as structural guide, but adapt to your specific story.
 - Then write the FULL ${actNumber ? 'ACT' : 'STORY'} in ${language} split into CHAPTERS (${chapterGuidance}).
-  - ⚠️ CRITICAL WORD COUNT LIMIT: TOTAL ${actNumber ? 'act' : 'story'} must be APPROXIMATELY ${targetWords} words (±10% acceptable).
-  - Distribute content across ${chapterCount} chapters (~${avgWordsPerChapter} words each).
-  - DO NOT exceed ${Math.round(targetWords * 1.1)} words total - conclude ${actNumber ? 'act' : 'story'} naturally within this limit.${actNumber >= 2 && actNumber <= 4 ? `
-  - ⚠️ MIDDLE ACT COMPRESSION: This is a middle act - prioritize tight pacing, avoid over-explanation, keep scenes economical.` : ''}
+
+🔴 WORD COUNT REQUIREMENT 🔴
+  - TARGET: ${targetWords} words (±10% = ${Math.round(targetWords * 0.9)}-${Math.round(targetWords * 1.1)} words)
+  - Distribute content: ${chapterCount} chapters × ~${avgWordsPerChapter} words each
+  - Plan your narrative arc BEFORE writing - know how many words each chapter needs
+  - Track word count as you write${isFinalAct ? `
+  - ⚠️ FINAL ACT PRIORITY: STORY COMPLETION is more important than exact word count
+  - If you need extra words to properly conclude all plot threads - USE THEM
+  - A complete story at 115% target is BETTER than a truncated story at 100%
+  - NEVER sacrifice narrative closure to hit word count` : actNumber ? `
+  - ⚠️ NON-FINAL ACT: Stay within ±10% of target - the story continues in the next act
+  - End this act at a natural transition point, not mid-scene` : `
+  - Single-act story: balance word count with proper story conclusion
+  - If nearing target but story incomplete - add ~10% more to finish properly`}${actNumber >= 2 && actNumber <= 4 && !isFinalAct ? `
+  - ⚠️ MIDDLE ACT COMPRESSION: Prioritize tight pacing, avoid over-explanation, keep scenes economical.` : ''}
   - Start each chapter: # Chapter N, then ⟪CAMERA:${narratorName || 'Name'};POV:${pov};TENSE:${process.env.POV_TENSE || 'past'}⟫, then story text in ${pov}-person.${narratorName ? `\n  - CRITICAL: ALL chapters MUST use ${narratorName} as narrator (single-character mode). NO alternating between characters.` : ''}
   - Each chapter MUST end with a soft hook (question/risk/choice/revelation) AND proper resolution in final chapter.
   - Keep voice consistent; cinematic, economical imagery; avoid high-frequency repetitive phrasing.
@@ -279,12 +312,17 @@ REQUIREMENTS:${actNumber ? `
 - Create a CHECKLIST of promises/"Chekhov's guns" that need resolution by the end.
 - Respect POLICY at all times: ${policy.no_explicit_content ? 'NO explicit sexual content. ' : ''}Violence level: ${policy.violence_level}.
 
-STORY RESOLUTION (FINAL CHAPTER):
+${isFinalAct || !actNumber ? `STORY RESOLUTION (FINAL CHAPTER):
 - The LAST chapter MUST provide emotional resolution and closure
 - Address ALL open questions from beats and checklist
 - Show character decision/growth/consequence
-- DO NOT end on cliffhanger or unresolved tension for short stories
+- DO NOT end on cliffhanger or unresolved tension
 - Ensure reader feels satisfied with narrative completion
+- ⚠️ CRITICAL: If word count is exhausted but story is unfinished - EXTEND to complete properly` : `ACT TRANSITION:
+- End this act at a NATURAL story break (not mid-scene or mid-dialogue)
+- Create anticipation for the next act without major cliffhangers
+- Leave 1-2 threads open for continuation
+- The next act will continue from exactly where this ends`}
 
 REPETITION_GUARD:
 - NO exact phrase repetition: if you use a 3+ word phrase once, rephrase it on every subsequent use.

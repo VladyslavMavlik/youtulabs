@@ -22,7 +22,7 @@ function Digit({ value, isAnimating }: DigitProps) {
         duration: 0.3,
         ease: 'easeOut',
       }}
-      className="text-2xl"
+      className="text-xl"
       style={{
         color: '#c9a468',
         fontFamily: '"Inter Tight", "Inter", sans-serif',

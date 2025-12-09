@@ -31,6 +31,7 @@ export function MouseFollowBackground() {
     if (isMobile || prefersReducedMotion) return;
 
     const handleMouseMove = (e: MouseEvent) => {
+      // Use clientX/clientY for fixed positioning
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
     };
@@ -40,13 +41,15 @@ export function MouseFollowBackground() {
   }, [mouseX, mouseY, isMobile, prefersReducedMotion]);
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
       {/* Mouse follower gradient - only on desktop */}
       {!isMobile && !prefersReducedMotion && (
         <motion.div
-          className="absolute w-[600px] h-[600px] rounded-full blur-3xl opacity-30"
+          className="fixed w-[600px] h-[600px] rounded-full blur-3xl opacity-30"
           style={{
             background: 'radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, rgba(255, 215, 0, 0.2) 50%, transparent 70%)',
+            left: 0,
+            top: 0,
             x: smoothMouseX,
             y: smoothMouseY,
             translateX: '-50%',

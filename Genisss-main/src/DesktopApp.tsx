@@ -1367,7 +1367,7 @@ export default function DesktopApp() {
 
   // DESKTOP LAYOUT: Horizontal split (form on left, story on right)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-black relative flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-[#054538] to-black relative flex flex-col">
       {/* Mouse follow background */}
       <MouseFollowBackground />
 

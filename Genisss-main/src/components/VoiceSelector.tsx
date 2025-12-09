@@ -334,9 +334,9 @@ export function VoiceSelector({
   `;
 
   return (
-    <div className="relative" style={{ marginBottom: '12px' }}>
+    <div className="relative" style={{ marginBottom: '8px' }}>
       <style>{scrollbarStyles}</style>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-2">
         <Label className="text-emerald-100/90">{label}</Label>
         <InfoTooltip content={tooltip} />
       </div>
@@ -349,16 +349,16 @@ export function VoiceSelector({
           background: colors.bg,
           border: `1px solid ${colors.border}`,
           backdropFilter: 'blur(12px)',
-          borderRadius: '12px',
-          padding: '8px 14px 8px 10px',
-          gap: '12px',
+          borderRadius: '10px',
+          padding: '6px 12px 6px 8px',
+          gap: '10px',
         }}
       >
         {/* Play Button для обраного голосу */}
         {selectedVoice && (
           <PlayButton
             voice={selectedVoice}
-            size={44}
+            size={38}
             isPlaying={playingVoiceId === selectedVoice.id}
             isHovered={hoveredButtonId === selectedVoice.id}
             currentProgress={progress[selectedVoice.id] || 0}

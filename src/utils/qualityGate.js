@@ -66,20 +66,35 @@ export function qualityGate(chaptersMarkdown, targetWords, config = {}) {
   const metrics = {};
 
   // Check 1: Continuation (not truncated)
-  const truncCheck = isTruncated(chaptersMarkdown, targetWords);
+  const truncCheck = isTruncated(chaptersMarkdown, targetWords, language);
   metrics.truncated = truncCheck.truncated;
 
   if (truncCheck.truncated) {
     failures.push(`text_truncated: ${truncCheck.reason}`);
   }
 
-  // Check 2: Length within range (±10%)
-  const lengthCheck = checkLength(chaptersMarkdown, targetWords);
+  // Check 2: Length within range
+  // ASYMMETRIC tolerance: strict on "under" (truncated story), lenient on "over" (complete story)
+  // Under: -10% is failure (truncated)
+  // Over: +15% is warning, +25% is failure (story completion > exact word count)
+  const lengthCheck = checkLength(chaptersMarkdown, targetWords, language);
   metrics.lengthRatio = lengthCheck.ratio;
 
-  const lengthOk = Math.abs(lengthCheck.ratio - 1.0) <= lengthTolerance;
-  if (!lengthOk) {
-    failures.push(`length_out_of_range: ${lengthCheck.actualWords}/${targetWords} (${(lengthCheck.ratio * 100).toFixed(0)}%)`);
+  const underTolerance = lengthTolerance;  // Default 10%
+  const overTolerance = lengthTolerance + 0.05;  // +5% more lenient on over (15% total)
+  const overHardLimit = 0.25;  // 25% over is always a failure
+
+  const isTooShort = lengthCheck.ratio < (1.0 - underTolerance);
+  const isTooLong = lengthCheck.ratio > (1.0 + overHardLimit);
+  const isSlightlyOver = lengthCheck.ratio > (1.0 + overTolerance) && !isTooLong;
+
+  if (isTooShort) {
+    failures.push(`length_too_short: ${lengthCheck.actualWords}/${targetWords} (${(lengthCheck.ratio * 100).toFixed(0)}%) - story may be truncated`);
+  } else if (isTooLong) {
+    failures.push(`length_too_long: ${lengthCheck.actualWords}/${targetWords} (${(lengthCheck.ratio * 100).toFixed(0)}%) - exceeds 125% limit`);
+  } else if (isSlightlyOver) {
+    // Log warning but don't fail - story completion is more important
+    console.log(`[QUALITY_GATE] Length warning: ${lengthCheck.actualWords}/${targetWords} (${(lengthCheck.ratio * 100).toFixed(0)}%) - slightly over target but acceptable for story completion`);
   }
 
   // Check 3: Hooks present (if required)
@@ -359,23 +374,31 @@ export function calculateExpectedChapters(targetWords) {
 /**
  * Get genre-specific repetition threshold
  * Now uses genre pack if available for future extensibility
+ *
+ * Thresholds are per 1000 bigrams. Formula: (repeated_bigrams / total_bigrams) * 1000
+ * Example: 82 repeated out of 2943 total = 27.86 per 1000 = 2.78% repetition rate
+ *
+ * Realistic benchmarks (based on production data):
+ * - Well-written fiction: 20-40 per 1000 (2-4% repetition)
+ * - Dialogue-heavy genres: 40-70 per 1000 (4-7% repetition)
+ * - Problematic repetition: >80 per 1000 (>8% repetition)
  */
 export function getGenreRepetitionThreshold(genre, genrePack = null) {
-  // Genre-specific thresholds with metric v2 (content tokens, stopwords filtered)
+  // Genre-specific thresholds calibrated to realistic values
   // Higher values for dialogue-heavy genres (natural repetition in conversation)
   const thresholds = {
-    'noir_drama': 3.5,      // More atmospheric lexicon allowed
-    'thriller': 2.7,        // Tight, varied language
-    'tech_thriller': 2.7,
-    'romance': 6.0,         // High dialogue ratio + emotional lexicon (metric v2)
-    'sci_fi': 2.8,          // Technical but varied
-    'scifi_adventure': 2.9, // Adventure pacing with some repetition
-    'fantasy': 3.0,         // World-building lexicon
-    'horror': 3.3,          // Atmosphere allowed
-    'comedy': 2.5,          // Maximum variety for humor
-    'mystery': 2.9,         // Precise language
-    'family_drama': 6.0     // High dialogue ratio (metric v2)
+    'noir_drama': 40,       // More atmospheric lexicon allowed
+    'thriller': 35,         // Tight, varied language but allows character names
+    'tech_thriller': 35,
+    'romance': 65,          // High dialogue ratio + emotional lexicon
+    'sci_fi': 38,           // Technical terminology repeats naturally
+    'scifi_adventure': 40,  // Adventure pacing with some repetition
+    'fantasy': 42,          // World-building lexicon, character names
+    'horror': 45,           // Atmosphere and tension through repetition
+    'comedy': 30,           // Maximum variety for humor
+    'mystery': 38,          // Precise language, clue repetition
+    'family_drama': 65      // High dialogue ratio
   };
 
-  return genrePack?.repetitionThreshold || thresholds[genre] || 3.2;  // Default
+  return genrePack?.repetitionThreshold || thresholds[genre] || 40;  // Default
 }

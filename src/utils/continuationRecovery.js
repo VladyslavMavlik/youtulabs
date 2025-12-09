@@ -7,13 +7,27 @@ import crypto from 'crypto';
 
 /**
  * Check if text appears truncated
+ * @param {string} text - The text to check
+ * @param {number} targetWords - Target word count
+ * @param {string} language - Language code for proper word counting (e.g., 'uk-UA', 'ja-JP')
  */
-export function isTruncated(text, targetWords) {
-  const actualWords = countWords(text);
+export function isTruncated(text, targetWords, language = null) {
+  const actualWords = countWords(text, language);
 
-  // Check 1: Less than 90% of target
+  // Critical shortage (less than 80%) - always truncated regardless of punctuation
+  // This catches cases where story ends properly but is way too short
+  if (actualWords < targetWords * 0.80) {
+    return {
+      truncated: true,
+      actualWords,
+      targetWords,
+      missingWords: targetWords - actualWords,
+      reason: `Text is ${Math.round((1 - actualWords / targetWords) * 100)}% short of target (critical shortage)`
+    };
+  }
+
+  // Moderate shortage (80-90%) - check punctuation
   if (actualWords < targetWords * 0.9) {
-    // Check 2: Doesn't end with proper punctuation
     const lastChars = text.trim().slice(-10);
     const endsWithPunctuation = /[.!?][\s"»"]*$/.test(lastChars);
 

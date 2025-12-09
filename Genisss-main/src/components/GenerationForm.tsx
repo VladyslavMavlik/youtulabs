@@ -653,7 +653,7 @@ export const GenerationForm = forwardRef<GenerationFormRef, GenerationFormProps>
                   <Label className="text-emerald-100/70">{t.voiceGender}</Label>
                   <InfoTooltip content={t.voiceGenderTooltip} />
                 </div>
-                <div className="flex items-center justify-center gap-6 p-4">
+                <div className="flex items-center justify-center gap-6 p-2">
                   <button
                     type="button"
                     onClick={() => {

@@ -26,7 +26,7 @@ import {
   extractChapters,
   sanitizeControlMarkers
 } from './utils/parsers.js';
-import { generateQualityReport, calculateBigramRepetition, hasHook, checkLength } from './utils/quality.js';
+import { generateQualityReport, calculateBigramRepetition, hasHook, checkLength, povDriftMetrics } from './utils/quality.js';
 import { sanitizeUserPrompt } from './utils/escapeFilter.js';
 import { validateSonnetPlannerResponse, validateHaikuPolishResponse, fixInvalidData } from './utils/validation.js';
 import { withRetry, withRetryAndFallback } from './utils/retry.js';
@@ -389,8 +389,8 @@ export class StoryOrchestrator {
     // Check quality metrics to decide if polish is needed
     const polishMode = process.env.POLISH_MODE || 'off';
     const bigramData = calculateBigramRepetition(finalChapters, languagePack);
-    const lengthCheck = checkLength(finalChapters, targetWords);
-    const chapters = extractChapters(finalChapters);
+    const lengthCheck = checkLength(finalChapters, targetWords, language);
+    const chapters = extractChapters(finalChapters, language);
     const missingHooks = chapters.filter(ch => !hasHook(ch.text)).map(ch => ch.title);
 
     // Genre-aware repetition threshold
@@ -466,17 +466,17 @@ export class StoryOrchestrator {
     }
 
     // Step 3: Continuation recovery if truncated
-    const truncCheck = isTruncated(finalChapters, targetWords);
+    const truncCheck = isTruncated(finalChapters, targetWords, language);
     if (truncCheck.truncated) {
       log.warn({ ...truncCheck }, 'Text appears truncated, attempting continuation recovery');
       finalChapters = await this.recoverContinuation(finalChapters, truncCheck.missingWords, language, log);
     }
 
     // Step 4: Length correction (raised threshold to 500 words = ~16% tolerance)
-    const finalLengthCheck = checkLength(finalChapters, targetWords);
+    const finalLengthCheck = checkLength(finalChapters, targetWords, language);
     if (finalLengthCheck.needsAdjustment && Math.abs(finalLengthCheck.difference) > 500) {
       log.info({ adjustment: finalLengthCheck.difference }, 'Applying length correction');
-      finalChapters = await this.correctLength(finalChapters, finalLengthCheck.difference, targetWords, log);
+      finalChapters = await this.correctLength(finalChapters, finalLengthCheck.difference, targetWords, language, log);
     }
 
     // Step 5: Hook enforcement (only if enabled and still missing hooks)
@@ -616,6 +616,12 @@ export class StoryOrchestrator {
   async generateShortMultiAct({ storyId, language, genre, targetWords, policy, prompt, pov, audioMode = false, options = {}, languagePack, genrePack, log }) {
     // Dynamic acts: 3000 words per act (Sonnet can handle this comfortably)
     const NUM_ACTS = Math.max(2, Math.ceil(targetWords / WORDS_PER_ACT));
+
+    // No buffer - pass exact target to Claude and rely on:
+    // 1. Strong word count instructions in prompt (HARD LIMIT)
+    // 2. Extension mechanism for short acts (< 85% target)
+    // 3. Quality gate for final length validation
+    // Previous buffers (15%, 10%) caused stories to exceed target significantly
     const wordsPerAct = Math.round(targetWords / NUM_ACTS);
     const acts = [];
     const actSummaries = []; // Store brief summaries of ALL previous acts for cumulative context
@@ -646,6 +652,7 @@ export class StoryOrchestrator {
         expectedChapters,
         contextSummary,
         actNumber: actNum,
+        totalActs: NUM_ACTS,
         options
       });
 
@@ -674,6 +681,24 @@ export class StoryOrchestrator {
 
       // Strip meta lines from this act BEFORE storing
       actChapters = stripMetaLines(actChapters);
+
+      // Check word count after processing
+      const actWords = countWords(actChapters, language);
+      const minActWords = Math.round(wordsPerAct * 0.85);
+      const maxActWords = Math.round(wordsPerAct * 1.25); // Max 125% to prevent runaway length
+
+      if (actWords < minActWords) {
+        const missingWords = wordsPerAct - actWords;
+        log.warn({ actNum, actWords, expected: wordsPerAct, missing: missingWords }, 'Act under target, extending via continuation');
+
+        // Extend via continuation recovery
+        actChapters = await this.recoverContinuation(actChapters, missingWords, language, log);
+        log.info({ actNum, newWords: countWords(actChapters, language) }, 'Act extended');
+      } else if (actWords > maxActWords) {
+        // Act is too long - log warning but don't truncate (would break narrative)
+        // The quality gate will handle length_out_of_range
+        log.warn({ actNum, actWords, expected: wordsPerAct, max: maxActWords, excess: actWords - wordsPerAct }, 'Act exceeds target - may cause total length overflow');
+      }
 
       // Store act
       acts.push(actChapters);
@@ -727,6 +752,24 @@ export class StoryOrchestrator {
         contextSummary = cumulativeContext;
 
         // NOTE: No motif scrubbing - Claude needs full context to maintain plot continuity
+      }
+    }
+
+    // POV consistency check for each act BEFORE joining
+    // This prevents POV drift from propagating between acts
+    if (pov) {
+      log.info({ pov }, 'Checking POV consistency for each act before joining');
+      for (let i = 0; i < acts.length; i++) {
+        const povCheck = povDriftMetrics(acts[i], pov, language);
+        if (povCheck.drift) {
+          log.warn({
+            act: i + 1,
+            first: povCheck.first,
+            third: povCheck.third,
+            pov
+          }, 'POV drift detected in act, applying normalization');
+          acts[i] = await this.normalizePOV(acts[i], pov, language, languagePack, log);
+        }
       }
     }
 
@@ -796,17 +839,17 @@ export class StoryOrchestrator {
     // Continue with standard short mode flow (length correction, hook enforcement, quality gate)
     const polishMode = process.env.POLISH_MODE || 'off';
 
-    const truncCheck = isTruncated(finalChapters, targetWords);
+    const truncCheck = isTruncated(finalChapters, targetWords, language);
     if (truncCheck.truncated) {
       log.warn({ ...truncCheck }, 'Text appears truncated, attempting continuation recovery');
       finalChapters = await this.recoverContinuation(finalChapters, truncCheck.missingWords, language, log);
     }
 
     // Length correction (raised threshold to 500 words = ~16% tolerance)
-    const finalLengthCheck = checkLength(finalChapters, targetWords);
+    const finalLengthCheck = checkLength(finalChapters, targetWords, language);
     if (finalLengthCheck.needsAdjustment && Math.abs(finalLengthCheck.difference) > 500) {
       log.info({ adjustment: finalLengthCheck.difference }, 'Applying length correction');
-      finalChapters = await this.correctLength(finalChapters, finalLengthCheck.difference, targetWords, log);
+      finalChapters = await this.correctLength(finalChapters, finalLengthCheck.difference, targetWords, language, log);
     }
 
     // Hook enforcement
@@ -947,6 +990,9 @@ export class StoryOrchestrator {
    */
   async generateLong({ language, genre, targetWords, policy, prompt, pov, audioMode = false, options = {}, languagePack, genrePack, log }) {
     const numActs = Math.ceil(targetWords / WORDS_PER_ACT);
+
+    // No buffer - pass exact target to Claude
+    // Extension mechanism handles short acts, quality gate validates final length
     const wordsPerAct = Math.round(targetWords / numActs);
     log.info({ numActs, wordsPerAct }, 'Long mode: multiple acts');
 
@@ -985,6 +1031,7 @@ export class StoryOrchestrator {
         genrePack,
         contextSummary,
         actNumber: actNum,
+        totalActs: numActs,
         options
       });
 
@@ -1038,9 +1085,24 @@ export class StoryOrchestrator {
       ledger.updateResolutions(polishData.notes.checklist_resolution);
 
       // IMPORTANT: Use original planner chapters, NOT polish (polish only improves quality, doesn't replace)
-      acts.push(plannerData.chapters);
+      let actChapters = plannerData.chapters;
 
-      log.info({ act: actNum, words: countWords(plannerData.chapters, language) }, 'Act polish complete');
+      // Check word count after processing - extend if under 85% of target
+      const actWords = countWords(actChapters, language);
+      const minActWords = Math.round(wordsPerAct * 0.85);
+
+      if (actWords < minActWords) {
+        const missingWords = wordsPerAct - actWords;
+        log.warn({ actNum, actWords, expected: wordsPerAct, missing: missingWords }, 'Act under target, extending via continuation');
+
+        // Extend via continuation recovery
+        actChapters = await this.recoverContinuation(actChapters, missingWords, language, log);
+        log.info({ actNum, newWords: countWords(actChapters, language) }, 'Act extended');
+      }
+
+      acts.push(actChapters);
+
+      log.info({ act: actNum, words: countWords(actChapters, language) }, 'Act polish complete');
     }
 
     // Log ledger summary
@@ -1077,12 +1139,12 @@ export class StoryOrchestrator {
     log.info({ words: countWords(assemblerData.markdown, language) }, 'Assembly complete');
 
     // Length correction (raised threshold to 500 words = ~16% tolerance)
-    const lengthCheck = checkLength(assemblerData.markdown, targetWords);
+    const lengthCheck = checkLength(assemblerData.markdown, targetWords, language);
     let finalMarkdown = assemblerData.markdown;
 
     if (lengthCheck.needsAdjustment && Math.abs(lengthCheck.difference) > 500) {
       log.info({ adjustment: lengthCheck.difference }, 'Applying length correction');
-      finalMarkdown = await this.correctLength(finalMarkdown, lengthCheck.difference, targetWords, log);
+      finalMarkdown = await this.correctLength(finalMarkdown, lengthCheck.difference, targetWords, language, log);
     }
 
     // Hook enforcement
@@ -1167,8 +1229,13 @@ export class StoryOrchestrator {
 
   /**
    * Correct story length
+   * @param {string} chaptersMarkdown - Story text
+   * @param {number} adjustment - Words to add (negative) or remove (positive)
+   * @param {number} targetWords - Target word count
+   * @param {string} language - Language code for word counting
+   * @param {object} log - Logger instance
    */
-  async correctLength(chaptersMarkdown, adjustment, targetWords, log) {
+  async correctLength(chaptersMarkdown, adjustment, targetWords, language, log) {
     if (Math.abs(adjustment) < 100) return chaptersMarkdown; // Skip if trivial
 
     const correctorPrompt = buildLengthCorrectorPrompt({
@@ -1178,11 +1245,18 @@ export class StoryOrchestrator {
     });
 
     try {
-      const correctedResponse = await this.callClaude('haiku', correctorPrompt, { temperature: 0.3, log });
+      // Use Sonnet for large expansions (>1000 words) - Haiku max_tokens=8192 is insufficient
+      const model = adjustment < -1000 ? 'sonnet' : 'haiku';
+      const correctedResponse = await this.callClaude(model, correctorPrompt, {
+        temperature: 0.3,
+        log,
+        step: 'length_correction'
+      });
       const corrected = correctedResponse.match(/⟪CHAPTERS⟫([\s\S]*?)⟪\/CHAPTERS⟫/);
 
       if (corrected && corrected[1]) {
-        log.info('Length correction applied');
+        const newWords = countWords(corrected[1], language);
+        log.info({ model, beforeWords: countWords(chaptersMarkdown, language), afterWords: newWords }, 'Length correction applied');
         return corrected[1].trim();
       }
     } catch (error) {
@@ -1229,6 +1303,60 @@ export class StoryOrchestrator {
     }
 
     return result;
+  }
+
+  /**
+   * Normalize POV in text that has drifted
+   * Uses patchRuntime POV normalization templates
+   * @param {string} text - Text with POV drift
+   * @param {string} pov - Target POV ('first' or 'third')
+   * @param {string} language - Language code
+   * @param {object} languagePack - Language pack for the story
+   * @param {object} log - Logger instance
+   * @returns {string} - Text with corrected POV
+   */
+  async normalizePOV(text, pov, language, languagePack, log) {
+    const { buildPatchPrompt } = await import('./patch/patchRuntime.js');
+    const patchType = pov === 'first' ? 'pov_normalize_first' : 'pov_normalize_third';
+
+    const patchPrompt = buildPatchPrompt(patchType, {
+      chapters: text,
+      languagePack,
+      metrics: {},
+      genrePack: {}
+    });
+
+    if (!patchPrompt) {
+      log.warn('POV patch prompt build failed');
+      return text;
+    }
+
+    try {
+      const response = await withRetry(
+        () => this.callClaude('haiku', patchPrompt, {
+          temperature: 0.2,
+          log,
+          step: 'pov_normalize'
+        }),
+        { retries: 2, baseDelay: 500 }
+      );
+
+      const parsed = parseHaikuPolishResponse(response);
+      const originalWords = countWords(text, language);
+      const newWords = countWords(parsed.chapters, language);
+
+      // Only accept if not significantly shorter (>80% of original)
+      if (parsed.chapters && newWords > originalWords * 0.8) {
+        log.info({ before: originalWords, after: newWords, pov }, 'POV normalized');
+        return parsed.chapters;
+      } else {
+        log.warn({ originalWords, newWords }, 'POV normalization result too short, keeping original');
+      }
+    } catch (e) {
+      log.warn({ error: e.message }, 'POV normalization failed');
+    }
+
+    return text;
   }
 
   /**

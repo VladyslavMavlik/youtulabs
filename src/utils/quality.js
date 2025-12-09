@@ -189,9 +189,12 @@ export function enforceHooks(markdown) {
 
 /**
  * Check length and suggest adjustments
+ * @param {string} markdown - Text to check
+ * @param {number} targetWords - Target word count
+ * @param {string} language - Language code for proper word counting (e.g., 'uk-UA', 'ja-JP')
  */
-export function checkLength(markdown, targetWords) {
-  const actualWords = countWords(markdown);
+export function checkLength(markdown, targetWords, language = null) {
+  const actualWords = countWords(markdown, language);
   const difference = actualWords - targetWords;
 
   // Safe ratio calculation (prevent NaN)
@@ -322,10 +325,15 @@ export function sensoryTriplet(text) {
 
 /**
  * Quality check report
+ * @param {string} markdown - Text to analyze
+ * @param {number} targetWords - Target word count
+ * @param {object} notesFromHaiku - Notes from Haiku polish step
+ * @param {object} languagePack - Language pack for stopwords
+ * @param {string} language - Language code for word counting (e.g., 'uk-UA', 'ja-JP')
  */
-export function generateQualityReport(markdown, targetWords, notesFromHaiku = null, languagePack = {}) {
+export function generateQualityReport(markdown, targetWords, notesFromHaiku = null, languagePack = {}, language = null) {
   const bigramAnalysis = calculateBigramRepetition(markdown, languagePack);
-  const lengthCheck = checkLength(markdown, targetWords);
+  const lengthCheck = checkLength(markdown, targetWords, language);
   const pacingFlags = analyzePacing(markdown);
 
   return {
