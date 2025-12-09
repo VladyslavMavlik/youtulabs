@@ -12,10 +12,10 @@ ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_API_URL=$VITE_API_URL
 
 # Copy frontend code
-COPY DEPLOY_ARCHIVE/Genisss-main/package*.json ./
+COPY Genisss-main/package*.json ./
 RUN npm ci
 
-COPY DEPLOY_ARCHIVE/Genisss-main/ ./
+COPY Genisss-main/ ./
 RUN npm run build
 
 # Production stage with nginx
