@@ -5,8 +5,9 @@
 SERVER := root@46.224.42.246
 REMOTE_PATH := /var/www/youtulabs-production
 FRONTEND_DIR := Genisss-main
+REPO_URL := https://github.com/VladyslavMavlik/youtulabs.git
 
-.PHONY: dev build deploy deploy-frontend logs status restart help
+.PHONY: dev build deploy logs status restart help git-push git-status
 
 # Default target
 help:
@@ -17,10 +18,14 @@ help:
 	@echo "    make build        - Build frontend for production"
 	@echo "    make install      - Install npm dependencies"
 	@echo ""
+	@echo "  Git:"
+	@echo "    make push         - Commit and push to develop branch"
+	@echo "    make git-status   - Show git status"
+	@echo ""
 	@echo "  Deployment:"
-	@echo "    make deploy       - Full deploy: build + sync + restart"
-	@echo "    make sync         - Only sync files to server (no rebuild)"
-	@echo "    make restart      - Restart frontend container on server"
+	@echo "    make deploy       - Deploy: git pull + rebuild containers"
+	@echo "    make deploy-quick - Quick deploy: git pull + restart (no rebuild)"
+	@echo "    make restart      - Just restart containers"
 	@echo ""
 	@echo "  Server:"
 	@echo "    make logs         - Show frontend container logs"
@@ -45,28 +50,63 @@ install:
 	@echo "Installing dependencies..."
 	cd $(FRONTEND_DIR) && npm ci
 
-# === Deployment ===
+# === Git ===
 
-deploy: build sync rebuild
-	@echo "Deploy complete!"
+push:
+	@echo "Committing and pushing to develop..."
+	git add .
+	@read -p "Commit message: " msg; git commit -m "$$msg"
+	git push origin develop
+	@echo "Pushed to develop!"
 
-sync:
-	@echo "Syncing to server..."
-	rsync -avz --delete \
-		--exclude 'node_modules' \
-		--exclude '.git' \
-		./$(FRONTEND_DIR)/ \
-		$(SERVER):$(REMOTE_PATH)/DEPLOY_ARCHIVE/Genisss-main/
-	@echo "Sync complete"
+git-status:
+	git status
 
-rebuild:
-	@echo "Rebuilding Docker container..."
-	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose build --no-cache frontend && docker compose up -d frontend"
-	@echo "Container rebuilt and restarted"
+# === Deployment (Git-based) ===
+
+deploy:
+	@echo "=== Full Deploy ==="
+	@echo "1. Pushing local changes..."
+	git add .
+	-git commit -m "Deploy update" || true
+	git push origin develop
+	@echo "2. Pulling on server..."
+	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main"
+	@echo "3. Rebuilding containers..."
+	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose build --no-cache && docker compose up -d"
+	@echo "=== Deploy complete! ==="
+
+deploy-quick:
+	@echo "=== Quick Deploy ==="
+	@echo "1. Pushing local changes..."
+	git add .
+	-git commit -m "Quick deploy update" || true
+	git push origin develop
+	@echo "2. Pulling on server..."
+	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main"
+	@echo "3. Restarting containers..."
+	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose restart"
+	@echo "=== Quick deploy complete! ==="
+
+deploy-frontend:
+	@echo "Deploying frontend only..."
+	git add .
+	-git commit -m "Frontend update" || true
+	git push origin develop
+	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main && docker compose build --no-cache frontend && docker compose up -d frontend"
+	@echo "Frontend deployed!"
+
+deploy-backend:
+	@echo "Deploying backend only..."
+	git add .
+	-git commit -m "Backend update" || true
+	git push origin develop
+	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main && docker compose build --no-cache backend && docker compose up -d backend"
+	@echo "Backend deployed!"
 
 restart:
-	@echo "Restarting frontend container..."
-	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose restart frontend"
+	@echo "Restarting all containers..."
+	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose restart"
 
 # === Server Monitoring ===
 
@@ -86,11 +126,14 @@ status:
 ssh:
 	ssh $(SERVER)
 
-# === Quick commands ===
+# === Production Release ===
 
-# Quick deploy without rebuild (just sync and restart nginx)
-quick:
-	@echo "Quick deploy (sync only, no Docker rebuild)..."
-	$(MAKE) sync
-	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose restart frontend"
-	@echo "Quick deploy complete"
+release:
+	@echo "=== Creating Production Release ==="
+	@read -p "Version (e.g. v1.2.15): " ver; \
+	git checkout main && \
+	git merge develop && \
+	git tag $$ver && \
+	git push origin main --tags && \
+	echo "Released $$ver to production!"
+	@echo "Now run 'make deploy' to update server"
