@@ -336,7 +336,7 @@ export function VoiceSelector({
   return (
     <div className="relative" style={{ marginBottom: '12px' }}>
       <style>{scrollbarStyles}</style>
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-4">
         <Label className="text-emerald-100/90">{label}</Label>
         <InfoTooltip content={tooltip} />
       </div>
