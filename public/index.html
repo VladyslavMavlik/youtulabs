@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Generator Geis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 0.95em;
+        }
+
+        select, input, textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .policy-group {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+        }
+
+        .result.active {
+            display: block;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .story-content {
+            line-height: 1.8;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .story-content p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+
+        .titles-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .titles-list li {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .quality-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .quality-item {
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .quality-item h4 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .quality-item p {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge.good {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .pov-toggle {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .pov-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .pov-toggle input[type="radio"] {
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .policy-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✨ Story Generator Geis</h1>
+            <p>One form → 2-3 Claude calls → Complete story</p>
+        </div>
+
+        <div class="card" id="form-card">
+            <form id="story-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="language">Language</label>
+                        <select id="language" required>
+                            <option value="">Select language...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="genre">Genre</label>
+                        <select id="genre" required>
+                            <option value="">Select genre...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="minutes">Duration (minutes)</label>
+                        <input type="number" id="minutes" min="1" max="180" value="10" required>
+                        <small style="color: #666; margin-top: 4px;">1-60 min = short mode, 60+ = long mode</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="violence">Violence Level</label>
+                        <select id="violence">
+                            <option value="minimal">Minimal</option>
+                            <option value="moderate" selected>Moderate</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Point of View</label>
+                        <div class="pov-toggle">
+                            <label><input type="radio" name="pov" value="third" checked> 3rd person (limited)</label>
+                            <label><input type="radio" name="pov" value="first"> 1st person (I)</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="prompt">Story Brief / Prompt</label>
+                        <textarea id="prompt" required placeholder="Describe your story idea, mood, characters, setting, or any specific requirements..."></textarea>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <div class="policy-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="no-explicit" checked>
+                                <label for="no-explicit" style="margin: 0;">No explicit content</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="audio-mode">
+                                <label for="audio-mode" style="margin: 0;">🎙️ Audio-first mode (YouTube VO)</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="time-beacons" checked>
+                                <label for="time-beacons" style="margin: 0;">⏰ Time beacons (scene transitions)</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="tight-cadence" checked>
+                                <label for="tight-cadence" style="margin: 0;">🎵 Tight cadence (12-16 word sentences)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="generate-btn">
+                    Generate Story
+                </button>
+            </form>
+        </div>
+
+        <div class="card loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loading-text">Generating your story...</p>
+            <p style="color: #666; margin-top: 10px; font-size: 0.9em;" id="loading-details">This may take 30-120 seconds</p>
+        </div>
+
+        <div class="card result" id="result">
+            <h2 style="margin-bottom: 20px;">Your Story</h2>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="story">Story</button>
+                <button class="tab" data-tab="titles">Titles</button>
+                <button class="tab" data-tab="synopsis">Synopsis</button>
+                <button class="tab" data-tab="quality">Quality Report</button>
+            </div>
+
+            <div class="tab-content active" id="tab-story">
+                <div class="story-content" id="story-text"></div>
+            </div>
+
+            <div class="tab-content" id="tab-titles">
+                <ul class="titles-list" id="titles-list"></ul>
+            </div>
+
+            <div class="tab-content" id="tab-synopsis">
+                <div class="story-content" id="synopsis-text"></div>
+            </div>
+
+            <div class="tab-content" id="tab-quality">
+                <div class="quality-grid" id="quality-report"></div>
+            </div>
+
+            <button class="btn" onclick="location.reload()" style="margin-top: 30px;">
+                Generate Another Story
+            </button>
+        </div>
+
+        <div class="error-message" id="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Load languages and genres
+        async function loadOptions() {
+            try {
+                const [languages, genres] = await Promise.all([
+                    fetch('/api/languages').then(r => r.json()),
+                    fetch('/api/genres').then(r => r.json())
+                ]);
+
+                const langSelect = document.getElementById('language');
+                languages.languages.forEach(lang => {
+                    const option = document.createElement('option');
+                    option.value = lang.code;
+                    option.textContent = lang.name;
+                    langSelect.appendChild(option);
+                });
+
+                const genreSelect = document.getElementById('genre');
+                genres.genres.forEach(genre => {
+                    const option = document.createElement('option');
+                    option.value = genre.code;
+                    option.textContent = genre.name;
+                    genreSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load options:', error);
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(`tab-${targetTab}`).classList.add('active');
+            });
+        });
+
+        // Form submission
+        document.getElementById('story-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const payload = {
+                language: document.getElementById('language').value,
+                genre: document.getElementById('genre').value,
+                minutes: parseInt(document.getElementById('minutes').value),
+                prompt: document.getElementById('prompt').value,
+                pov: document.querySelector('input[name="pov"]:checked').value || 'third',
+                audioMode: document.getElementById('audio-mode').checked,
+                policy: {
+                    no_explicit_content: document.getElementById('no-explicit').checked,
+                    violence_level: document.getElementById('violence').value
+                },
+                options: {
+                    return_outline: true,
+                    return_titles: true,
+                    time_beacons: document.getElementById('time-beacons').checked,
+                    tight_cadence: document.getElementById('tight-cadence').checked
+                }
+            };
+
+            // Show loading
+            document.getElementById('form-card').style.display = 'none';
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('result').classList.remove('active');
+
+            const mode = payload.minutes <= 60 ? 'short' : 'long';
+            document.getElementById('loading-details').textContent =
+                mode === 'short' ? 'Short mode: ~30-60 seconds' : 'Long mode: ~90-180 seconds';
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Generation failed');
+                }
+
+                const result = await response.json();
+
+                // Display results
+                displayResults(result);
+
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('result').classList.add('active');
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('form-card').style.display = 'block';
+                document.getElementById('error').textContent = error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+        });
+
+        function displayResults(result) {
+            // Story text - convert double newlines to paragraphs
+            const storyDiv = document.getElementById('story-text');
+            const paragraphs = result.chapters_markdown
+                .split('\n\n')
+                .filter(p => p.trim())
+                .map(p => `<p>${p.replace(/\n/g, ' ')}</p>`)
+                .join('');
+            storyDiv.innerHTML = paragraphs;
+
+            // Titles
+            const titlesList = document.getElementById('titles-list');
+            titlesList.innerHTML = '';
+            result.titles.forEach(title => {
+                const li = document.createElement('li');
+                li.textContent = title;
+                titlesList.appendChild(li);
+            });
+
+            // Synopsis
+            document.getElementById('synopsis-text').textContent = result.synopsis;
+
+            // Quality report
+            const qualityDiv = document.getElementById('quality-report');
+            let qualityHTML = `
+                <div class="quality-item">
+                    <h4>Overall Quality</h4>
+                    <p><span class="badge ${result.quality.overallQuality === 'good' ? 'good' : 'warning'}">${result.quality.overallQuality.toUpperCase()}</span></p>
+                </div>
+                <div class="quality-item">
+                    <h4>Word Count</h4>
+                    <p>${result.meta.actual_words} / ${result.meta.target_words} words</p>
+                    <p><small>${result.quality.length.percentDiff}% difference</small></p>
+                </div>
+                <div class="quality-item">
+                    <h4>Repetition Rate</h4>
+                    <p>${result.quality.repetition.rate} per 1000 tokens</p>
+                    <p><small>${result.quality.repetition.acceptable ? '✓ Acceptable' : '⚠ High'}</small></p>
+                </div>
+                <div class="quality-item">
+                    <h4>Pacing</h4>
+                    <p>${result.quality.pacing.acceptable ? '✓ Good pacing' : `${result.quality.pacing.flags.length} issues`}</p>
+                </div>
+            `;
+
+            // Add audio metrics if available
+            if (result.quality.audioMetrics) {
+                const audio = result.quality.audioMetrics;
+                qualityHTML += `
+                    <div class="quality-item" style="border-left-color: #ff6b6b;">
+                        <h4>🎙️ Sentence Length (median)</h4>
+                        <p>${audio.sentenceMedian} words</p>
+                        <p><small>${audio.sentenceMedian <= 20 ? '✓ Good for VO' : '⚠ Too long'}</small></p>
+                    </div>
+                    <div class="quality-item" style="border-left-color: #ff6b6b;">
+                        <h4>🎙️ Beat Compliance</h4>
+                        <p>${(audio.beatCompliance * 100).toFixed(0)}%</p>
+                        <p><small>${audio.beatCompliance >= 0.6 ? '✓ Good' : '⚠ Low'}</small></p>
+                    </div>
+                    <div class="quality-item" style="border-left-color: #ff6b6b;">
+                        <h4>🎙️ Transitions</h4>
+                        <p>${audio.transitions.count} (${audio.transitions.density}/1000w)</p>
+                        <p><small>${audio.transitions.density >= 1.2 ? '✓ Sufficient' : '⚠ Sparse'}</small></p>
+                    </div>
+                    <div class="quality-item" style="border-left-color: #ff6b6b;">
+                        <h4>🎙️ Dialogue Attribution</h4>
+                        <p>${(audio.dialogueAttribution * 100).toFixed(0)}%</p>
+                        <p><small>${audio.dialogueAttribution >= 0.6 ? '✓ Clear speakers' : '⚠ Confusing'}</small></p>
+                    </div>
+                    <div class="quality-item" style="border-left-color: #ff6b6b;">
+                        <h4>🎙️ Meta Intrusions</h4>
+                        <p>${audio.metaIntrusions.length} found</p>
+                        <p><small>${audio.metaIntrusions.length === 0 ? '✓ Clean' : '⚠ Needs cleanup'}</small></p>
+                    </div>
+                `;
+            }
+
+            qualityHTML += `
+                <div class="quality-item">
+                    <h4>Generation Time</h4>
+                    <p>${result.meta.generation_time_seconds}s</p>
+                </div>
+                <div class="quality-item">
+                    <h4>Mode</h4>
+                    <p>${result.meta.mode.toUpperCase()}</p>
+                </div>
+            `;
+
+            qualityDiv.innerHTML = qualityHTML;
+        }
+
+        // Initialize
+        loadOptions();
+    </script>
+</body>
+</html>

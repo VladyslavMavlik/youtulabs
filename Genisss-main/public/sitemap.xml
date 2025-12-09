@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- Homepage -->
+  <url>
+    <loc>https://youtulabs.com/</loc>
+    <lastmod>2025-12-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://youtulabs.com/" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://youtulabs.com/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://youtulabs.com/" />
+    <image:image>
+      <image:loc>https://youtulabs.com/Genis logo.png</image:loc>
+      <image:title>Youtulabs AI Generator</image:title>
+      <image:caption>AI генератор історій та контенту</image:caption>
+    </image:image>
+  </url>
+
+</urlset>

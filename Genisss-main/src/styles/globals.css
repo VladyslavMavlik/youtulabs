@@ -1,0 +1,197 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #0a1f0f;
+  --foreground: #e8f5e9;
+  --card: #0d2612;
+  --card-foreground: #e8f5e9;
+  --popover: #0d2612;
+  --popover-foreground: #e8f5e9;
+  --primary: #1b5e20;
+  --primary-foreground: #ffd700;
+  --secondary: #2e7d32;
+  --secondary-foreground: #ffd700;
+  --muted: #1b3a1f;
+  --muted-foreground: #81c784;
+  --accent: #388e3c;
+  --accent-foreground: #ffd700;
+  --destructive: #d32f2f;
+  --destructive-foreground: #ffffff;
+  --border: rgba(129, 199, 132, 0.2);
+  --input: transparent;
+  --input-background: #0d2612;
+  --switch-background: #2e7d32;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #4caf50;
+  --chart-1: #4caf50;
+  --chart-2: #ffd700;
+  --chart-3: #81c784;
+  --chart-4: #c6ff00;
+  --chart-5: #ffeb3b;
+  --radius: 0.75rem;
+  --sidebar: #0d2612;
+  --sidebar-foreground: #e8f5e9;
+  --sidebar-primary: #2e7d32;
+  --sidebar-primary-foreground: #ffd700;
+  --sidebar-accent: #1b5e20;
+  --sidebar-accent-foreground: #e8f5e9;
+  --sidebar-border: rgba(129, 199, 132, 0.2);
+  --sidebar-ring: #4caf50;
+  
+  /* Custom colors for green-gold theme */
+  --emerald-deep: #064e3b;
+  --emerald-rich: #047857;
+  --emerald-bright: #10b981;
+  --gold-dark: #b8860b;
+  --gold-medium: #daa520;
+  --gold-bright: #ffd700;
+}
+
+.dark {
+  --background: #0a1f0f;
+  --foreground: #e8f5e9;
+  --card: #0d2612;
+  --card-foreground: #e8f5e9;
+  --popover: #0d2612;
+  --popover-foreground: #e8f5e9;
+  --primary: #2e7d32;
+  --primary-foreground: #ffd700;
+  --secondary: #1b5e20;
+  --secondary-foreground: #e8f5e9;
+  --muted: #1b3a1f;
+  --muted-foreground: #81c784;
+  --accent: #388e3c;
+  --accent-foreground: #ffd700;
+  --destructive: #d32f2f;
+  --destructive-foreground: #ffffff;
+  --border: rgba(129, 199, 132, 0.2);
+  --input: rgba(129, 199, 132, 0.1);
+  --ring: #4caf50;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #4caf50;
+  --chart-2: #ffd700;
+  --chart-3: #81c784;
+  --chart-4: #c6ff00;
+  --chart-5: #ffeb3b;
+  --sidebar: #0d2612;
+  --sidebar-foreground: #e8f5e9;
+  --sidebar-primary: #2e7d32;
+  --sidebar-primary-foreground: #ffd700;
+  --sidebar-accent: #1b5e20;
+  --sidebar-accent-foreground: #e8f5e9;
+  --sidebar-border: rgba(129, 199, 132, 0.2);
+  --sidebar-ring: #4caf50;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}

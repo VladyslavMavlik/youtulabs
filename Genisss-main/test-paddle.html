@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Paddle Test</title>
+  <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+</head>
+<body>
+  <h1>Paddle Checkout Test</h1>
+  <button onclick="openCheckout()">Open Checkout</button>
+
+  <script>
+    // Initialize Paddle
+    Paddle.Environment.set('sandbox');
+    Paddle.Initialize({
+      token: 'test_05e3c16415a6de200ea05d85a9e',
+      eventCallback: function(data) {
+        console.log('Paddle Event:', data);
+      }
+    });
+
+    function openCheckout() {
+      console.log('Opening checkout...');
+
+      Paddle.Checkout.open({
+        items: [{
+          priceId: 'pri_01kaseyhggrqz2x9j73ma2cwwc',
+          quantity: 1
+        }]
+      });
+    }
+  </script>
+</body>
+</html>

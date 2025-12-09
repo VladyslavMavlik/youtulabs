@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+Genisss-main/node_modules/
+
+# Environment files (contain secrets)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+._*
+
+# Logs
+*.log
+logs/
+
+# Large backup files
+*.tar.gz
+*.zip
+FULL_SERVER_BACKUP_*
+SERVER_BACKUP_*
+SERVER_FULL_BACKUP/
+youtulabs_*.tar.gz
+all_genisss_*.tar.gz
+
+# Build outputs
+Genisss-main/build/
+Genisss-main/dist/
+build/
+dist/
+
+# Temporary files
+tmp/
+*.tmp
+*.bak
+*.backup*
+
+# IDE
+.vscode/
+.idea/
+
+# Claude conversations (large text files)
+*.txt
+!README.txt
+
+# Old/duplicate folders
+DEPLOY_ARCHIVE/
+Genisss/
+TextGeneratorGeis/
+Reference/
+data/
+
+# Server pid files
+*.pid
+
+# Scripts that contain sensitive data
+apply_*.js
+apply_*.cjs
+apply_*.mjs
+check_*.js
+check_*.cjs
+run_*.js
+run_*.sh
+migrate.js
+quick-*.mjs
+verify_*.js
+investigate_*.js
+cleanup_*.js

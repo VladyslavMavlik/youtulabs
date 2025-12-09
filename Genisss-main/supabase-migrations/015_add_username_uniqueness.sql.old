@@ -1,0 +1,53 @@
+-- Migration: Add username and email uniqueness check
+-- This ensures usernames and emails are unique across the platform
+
+-- Create function to check if username exists
+CREATE OR REPLACE FUNCTION public.check_username_exists(p_username TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  -- Check in auth.users metadata for existing username (case-insensitive)
+  -- Check multiple fields: name, full_name, display_name (for OAuth users)
+  SELECT COUNT(*)
+  INTO v_count
+  FROM auth.users
+  WHERE LOWER(raw_user_meta_data->>'name') = LOWER(p_username)
+     OR LOWER(raw_user_meta_data->>'full_name') = LOWER(p_username)
+     OR LOWER(raw_user_meta_data->>'display_name') = LOWER(p_username);
+
+  RETURN v_count > 0;
+END;
+$$;
+
+-- Create function to check if email exists
+CREATE OR REPLACE FUNCTION public.check_email_exists(p_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  -- Check in auth.users for existing email (case-insensitive)
+  SELECT COUNT(*)
+  INTO v_count
+  FROM auth.users
+  WHERE LOWER(email) = LOWER(p_email);
+
+  RETURN v_count > 0;
+END;
+$$;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION public.check_username_exists(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_username_exists(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.check_email_exists(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_email_exists(TEXT) TO anon;
+
+-- Add comments
+COMMENT ON FUNCTION public.check_username_exists IS 'Checks if a username already exists in the system (case-insensitive). Checks name, full_name, and display_name fields.';
+COMMENT ON FUNCTION public.check_email_exists IS 'Checks if an email already exists in the system (case-insensitive).';
