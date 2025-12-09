@@ -74,6 +74,8 @@ deploy:
 	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main"
 	@echo "3. Rebuilding containers..."
 	ssh $(SERVER) "cd $(REMOTE_PATH) && docker compose build --no-cache && docker compose up -d"
+	@echo "4. Copying frontend files..."
+	ssh $(SERVER) "docker cp youtulabs-production-frontend-1:/usr/share/nginx/html/. /var/www/youtulabs/"
 	@echo "=== Deploy complete! ==="
 
 deploy-quick:
@@ -93,7 +95,7 @@ deploy-frontend:
 	git add .
 	-git commit -m "Frontend update" || true
 	git push origin develop
-	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main && docker compose build --no-cache frontend && docker compose up -d frontend"
+	ssh $(SERVER) "cd $(REMOTE_PATH) && git pull origin main && docker compose build --no-cache frontend && docker compose up -d frontend && docker cp youtulabs-production-frontend-1:/usr/share/nginx/html/. /var/www/youtulabs/"
 	@echo "Frontend deployed!"
 
 deploy-backend:
