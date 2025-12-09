@@ -19,6 +19,7 @@ import bonusCodesRoutes from './routes/bonusCodesRoutes.js';
 import audioRoutes from './routes/audioRoutes.js';
 import nowpaymentsRoutes from './routes/nowpaymentsRoutes.js';
 import { handlePaddleWebhook } from './routes/paddleWebhook.js';
+import { handleLemonSqueezyWebhook, generateCheckoutUrl } from './routes/lemonsqueezyWebhook.js';
 import * as adminRoutes from './routes/adminRoutes.js';
 
 console.log('[SERVER] Admin routes imported:', Object.keys(adminRoutes));
@@ -112,8 +113,9 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Disable for API compatibility
 }));
 
-// Middleware для збереження raw body (потрібно для Paddle webhook signature)
+// Middleware для збереження raw body (потрібно для webhook signature verification)
 app.use('/api/paddle/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/lemonsqueezy/webhook', express.raw({ type: 'application/json' }));
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -210,6 +212,84 @@ app.post('/api/paddle/webhook', async (req, res) => {
   // Додаємо rawBody для перевірки підпису
   req.rawBody = req.body.toString('utf8');
   await handlePaddleWebhook(req, res);
+});
+
+// LemonSqueezy Webhook Route (без rate limiting і auth - LemonSqueezy сам відправляє запити)
+app.post('/api/lemonsqueezy/webhook', async (req, res) => {
+  // Додаємо rawBody для перевірки підпису
+  req.rawBody = req.body.toString('utf8');
+  await handleLemonSqueezyWebhook(req, res);
+});
+
+// LemonSqueezy Checkout URL Generator (requires authentication)
+app.post('/api/lemonsqueezy/checkout', async (req, res) => {
+  try {
+    // SECURITY CHECK: Verify authentication token
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      console.warn('[LEMONSQUEEZY CHECKOUT] Unauthorized attempt - no token');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify user with Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      console.warn('[LEMONSQUEEZY CHECKOUT] Invalid authentication token');
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    const { variantId } = req.body;
+
+    if (!variantId) {
+      return res.status(400).json({ error: 'Missing variantId' });
+    }
+
+    // Generate checkout URL with user_id in custom data
+    const checkoutUrl = generateCheckoutUrl(variantId, user.id, user.email);
+
+    console.log('[LEMONSQUEEZY CHECKOUT] Generated URL for user:', user.id, 'variant:', variantId);
+
+    return res.json({ checkoutUrl });
+  } catch (error) {
+    console.error('[LEMONSQUEEZY CHECKOUT] Error:', error);
+    return res.status(500).json({ error: 'Failed to generate checkout URL' });
+  }
+});
+
+// Get user's LemonSqueezy subscription status (requires authentication)
+app.get('/api/lemonsqueezy/subscription', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    // Get subscription from database
+    const { data: result, error } = await supabaseAdmin.rpc('get_user_lemonsqueezy_subscription', {
+      p_user_id: user.id
+    });
+
+    if (error) {
+      console.error('[LEMONSQUEEZY] get_subscription error:', error);
+      return res.status(500).json({ error: 'Failed to get subscription' });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error('[LEMONSQUEEZY] subscription error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Get Paddle Customer Portal URL (requires authentication)

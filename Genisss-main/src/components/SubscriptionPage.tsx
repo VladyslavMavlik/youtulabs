@@ -10,6 +10,7 @@ import type { User } from '@supabase/supabase-js';
 import type { Language } from '../lib/translations';
 import { translations } from '../lib/translations';
 import { initializePaddle, openPaddleCheckout, getPriceId } from '../utils/paddle';
+import { openLemonSqueezyCheckout, getVariantId } from '../utils/lemonsqueezy';
 import { supabase } from '../lib/supabase';
 
 interface SubscriptionPageProps {
@@ -168,30 +169,22 @@ export function SubscriptionPage({ onBack, user, balance, language = 'en', userP
       return;
     }
 
-    // Handle card/paypal with Paddle
-    if (!paddleReady) {
-      console.warn('[PADDLE] Paddle not ready');
-      return;
-    }
-
+    // Handle card/paypal with LemonSqueezy
     setIsProcessing(true);
+    setShowPaymentModal(false);
 
     try {
-      // Отримуємо Paddle Price ID для вибраного плану
-      const priceId = getPriceId(selectedPlan);
+      // Використовуємо LemonSqueezy для карткових платежів
+      console.log('[LEMONSQUEEZY] Opening checkout for plan:', selectedPlan);
 
-      console.log('[PADDLE] Opening checkout for plan:', selectedPlan, 'priceId:', priceId);
-
-      // Відкриваємо Paddle Checkout
-      openPaddleCheckout(priceId, {
+      await openLemonSqueezyCheckout(selectedPlan, {
         id: user.id,
         email: user.email
       });
 
-      setShowPaymentModal(false);
-      setIsProcessing(false);
+      // Redirect відбувається в openLemonSqueezyCheckout
     } catch (error) {
-      console.error('[PADDLE] Payment error:', error);
+      console.error('[LEMONSQUEEZY] Payment error:', error);
       alert('Payment error. Please try again.');
       setIsProcessing(false);
     }
