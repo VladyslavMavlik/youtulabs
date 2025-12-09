@@ -1,4 +1,4 @@
-# YouTuLabs v1.2.14 - Development & Deployment
+# YouTuLabs v1.2.15 - Development & Deployment
 # Usage: make <command>
 
 # Configuration
@@ -10,7 +10,7 @@ FRONTEND_DIR := Genisss-main
 
 # Default target
 help:
-	@echo "YouTuLabs v1.2.14 Commands:"
+	@echo "YouTuLabs v1.2.15 Commands:"
 	@echo ""
 	@echo "  Development:"
 	@echo "    make dev          - Start frontend dev server (localhost:5174)"
