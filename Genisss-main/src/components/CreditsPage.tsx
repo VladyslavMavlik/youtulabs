@@ -185,18 +185,15 @@ export function CreditsPage({ onBack, user, balance, language = 'en', userPlan }
       }
 
       const API_URL = import.meta.env.VITE_API_URL ?? '';
-      const response = await fetch(`${API_URL}/api/crypto/create-payment`, {
+      const response = await fetch(`${API_URL}/api/crypto/create-credit-pack-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          amount: pack.price,
-          currency: crypto.code,
-          type: 'credits',
-          credits: pack.crystals + pack.bonus,
-          description: `${pack.crystals.toLocaleString()} crystals${pack.bonus > 0 ? ` + ${pack.bonus} bonus` : ''}`
+          pack_id: selectedPack,
+          pay_currency: crypto.code,
         }),
       });
 
